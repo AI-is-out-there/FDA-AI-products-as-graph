@@ -1,84 +1,155 @@
 # FDA AI-enabled medical devices as a graph
 
-This repository explores the lineage of AI-enabled medical devices authorized by
-the U.S. Food and Drug Administration (FDA). It models 510(k) submissions as a
-directed graph: each node is a device submission and an edge connects a cited
-predicate device to the newer submission. The result makes it possible to see
-which devices are repeatedly used as predicates, how product families develop,
-and how authorizations are distributed over time, medical panel, and product
-code.
+An exploratory graph of AI-enabled medical devices authorized by the U.S. Food
+and Drug Administration (FDA). Each node represents a 510(k) submission and a
+directed edge runs from a predicate device to the later submission that cites
+it. This representation helps reveal recurring predicates, evolving product
+families, and authorization patterns across time, medical panels, and product
+codes.
 
-## Repository contents
+> [!IMPORTANT]
+> This repository is a visualization project, not an authoritative FDA
+> regulatory database or a clinical decision-support tool. Verify records with
+> the FDA before using them for research, clinical, or regulatory decisions.
 
-| Path | Description |
+## Explore the results
+
+No Python setup is required to view the checked-in visualizations. Download or
+clone the repository, then open either HTML file in a modern browser:
+
+- [`code/fda_network_graph_main.html`](code/fda_network_graph_main.html) —
+  Plotly timeline and hierarchical network view with zoom and hover details.
+- [`code/fda_medical_device_timeline_interactive.html`](code/fda_medical_device_timeline_interactive.html)
+  — PyVis network view with draggable nodes, zoom, and hover details.
+
+Because the HTML files contain their visualization data and JavaScript, they
+are large (approximately 5.3 MB and 450 KB respectively) but can be viewed
+offline.
+
+## Repository map
+
+| Path | Purpose |
 | --- | --- |
-| [`datasets/dataset-FDA-med-graph.csv`](datasets/dataset-FDA-med-graph.csv) | Source table of FDA decisions and predicate relationships. |
-| [`code/Graph-analysis.ipynb`](code/Graph-analysis.ipynb) | Main NetworkX and Plotly analysis: constructs the directed graph, calculates degree statistics, and produces interactive timeline, hierarchy, and summary views. [Open in Colab](https://colab.research.google.com/github/AI-is-out-there/FDA-AI-products-as-graph/blob/main/code/Graph-analysis.ipynb). |
-| [`code/Graph-FDA-timeline-intereactive.ipynb`](code/Graph-FDA-timeline-intereactive.ipynb) | Alternative NetworkX/Matplotlib and PyVis timeline visualization. [Open in Colab](https://colab.research.google.com/github/AI-is-out-there/FDA-AI-products-as-graph/blob/main/code/Graph-FDA-timeline-intereactive.ipynb). |
-| [`code/fda_network_graph_main.html`](code/fda_network_graph_main.html) | Pre-generated interactive Plotly network/timeline view. |
-| [`code/fda_medical_device_timeline_interactive.html`](code/fda_medical_device_timeline_interactive.html) | Pre-generated interactive PyVis network. |
-| [`latex-report/`](latex-report/) | LaTeX report template, bibliography, styles, and user manual. |
-| [`reports/`](reports/) | Location reserved for project reports. |
+| [`datasets/dataset-FDA-med-graph.csv`](datasets/dataset-FDA-med-graph.csv) | Semicolon-delimited source snapshot containing FDA decisions and predicate relationships. |
+| [`code/Graph-analysis.ipynb`](code/Graph-analysis.ipynb) | Primary NetworkX/Plotly workflow: cleans the data, builds the graph, calculates network statistics, creates a hierarchical timeline, and exports Plotly HTML. [Open in Colab](https://colab.research.google.com/github/AI-is-out-there/FDA-AI-products-as-graph/blob/main/code/Graph-analysis.ipynb). |
+| [`code/Graph-FDA-timeline-intereactive.ipynb`](code/Graph-FDA-timeline-intereactive.ipynb) | Alternative NetworkX/Matplotlib/PyVis timeline workflow. (The misspelling in the filename is retained for compatibility.) [Open in Colab](https://colab.research.google.com/github/AI-is-out-there/FDA-AI-products-as-graph/blob/main/code/Graph-FDA-timeline-intereactive.ipynb). |
+| [`code/fda_network_graph_main.html`](code/fda_network_graph_main.html) | Pre-generated Plotly output. |
+| [`code/fda_medical_device_timeline_interactive.html`](code/fda_medical_device_timeline_interactive.html) | Pre-generated PyVis output. |
+| [`latex-report/`](latex-report/) | Springer Nature LaTeX article template and supporting style files; it is not a completed project report. |
+| [`reports/`](reports/) | Placeholder for future reports. |
 
-## Dataset
+## Dataset snapshot
 
-The semicolon-delimited CSV contains one row per device record and the following
-fields:
+The CSV has **1,302 rows** and covers final decisions from **15 March 2001 to
+29 September 2025**. It contains **650 companies**, **17 panel labels**, and
+**132 primary product codes**. Radiology accounts for 1,022 records (about
+78.5%), so panel comparisons should account for this substantial class
+imbalance.
 
-- `Date of Final Decision` (`DD.MM.YYYY`)
-- `Submission Number`
-- `Device`
-- `Company`
-- `Panel (Lead)`
-- `Primary Product Code`
-- `Predicate Device`
+The file uses a semicolon (`;`) delimiter and `DD.MM.YYYY` dates:
 
-The current snapshot has **1,302 records**, covering decisions from **15 March
-2001 through 29 September 2025**. It includes 650 companies, 17 panel labels,
-and 132 primary product codes. The data is dominated by Radiology submissions,
-so comparisons between panels should take that class imbalance into account.
+| Column | Meaning |
+| --- | --- |
+| `Date of Final Decision` | FDA final-decision date in `DD.MM.YYYY` format. |
+| `Submission Number` | 510(k) submission identifier used as the graph node ID. |
+| `Device` | Device trade or model name. |
+| `Company` | Applicant/company name. |
+| `Panel (Lead)` | Lead FDA medical-specialty panel label. |
+| `Primary Product Code` | Primary FDA product code. |
+| `Predicate Device` | One or more predicate submission IDs; multiple IDs are comma-separated in some rows. |
 
-## How the analysis works
+Minimal Python loading example:
 
-1. Parse the decision date and split predicate identifiers where a submission
-   cites more than one predicate.
-2. Add each submission and its metadata to a directed NetworkX graph.
-3. Add an edge from each predicate to the submission that cites it. Predicate
-   identifiers absent from the dataset may therefore appear as external nodes.
-4. Calculate incoming, outgoing, and total degree to highlight influential
-   predicates and devices that cite multiple earlier submissions.
-5. Lay out devices chronologically and group them by FDA panel and product code;
-   export interactive HTML views with hover details, zooming, and panel colors.
+```python
+import pandas as pd
 
-The repository is an exploratory visualization project, not an FDA regulatory
-database or a clinical decision-support tool. Check records against the
-authoritative FDA source before using them in research or regulatory work.
+devices = pd.read_csv(
+    "datasets/dataset-FDA-med-graph.csv",
+    sep=";",
+    parse_dates=["Date of Final Decision"],
+    date_format="%d.%m.%Y",
+)
+```
 
-## Run the notebooks
+## Graph methodology
 
-The easiest route is to use the **Open in Colab** links above.
+The notebooks use the following general workflow:
 
-1. Download or clone this repository.
-2. Open a notebook in Google Colab.
-3. Upload `datasets/dataset-FDA-med-graph.csv` to the Colab session as
-   `/content/dataset-FDA-med-graph.csv` (the path expected by both notebooks).
-4. Run the cells from top to bottom. The notebooks install or import their
-   Python dependencies, including pandas, NetworkX, NumPy, Matplotlib, Plotly,
-   scikit-learn, ipywidgets, and PyVis.
-5. Download the generated HTML output if you want to retain it after the Colab
-   session ends.
+1. Parse the decision dates and attach each row's metadata to a node keyed by
+   `Submission Number`.
+2. Read predicate identifiers from `Predicate Device`.
+3. Add a directed edge `predicate -> submission` when the predicate identifier
+   is also present in this dataset.
+4. Arrange nodes chronologically and color/group them by lead panel or product
+   code.
+5. Use node degree to summarize connections and export an interactive HTML
+   visualization.
 
-Alternatively, run the notebooks locally with Jupyter after installing the same
-dependencies and change the CSV path in the loading cell to
-`../datasets/dataset-FDA-med-graph.csv`.
+With the current snapshot, splitting comma-separated predicate values produces
+**805 unique internal edges**. Predicate references that do not have their own
+row in the snapshot are skipped; the notebooks do **not** create external
+predicate nodes. Consequently, the graph describes relationships visible
+within this dataset rather than a complete FDA predicate lineage.
 
-The checked-in HTML files are self-contained outputs and can be opened directly
-in a modern browser; no notebook execution is required to explore them.
+For an edge `predicate -> submission`, the predicate's **out-degree** counts
+later submissions in this snapshot that cite it, while a submission's
+**in-degree** counts its included predicates. This direction is useful to keep
+in mind when interpreting degree labels in notebook output.
+
+## Run in Google Colab
+
+1. Open either notebook using its **Open in Colab** link above.
+2. Upload [`dataset-FDA-med-graph.csv`](datasets/dataset-FDA-med-graph.csv) to
+   the Colab session as `/content/dataset-FDA-med-graph.csv`, which is the path
+   currently hard-coded in both notebooks.
+3. Run all cells from top to bottom.
+4. Download the generated HTML before the temporary Colab session ends.
+
+The primary notebook writes `/content/fda_network_graph_main.html`. The
+alternative notebook writes `fda_medical_device_timeline.html` and
+`fda_medical_device_timeline_interactive.html` in its current working
+directory.
+
+## Run locally
+
+Python 3.10 or newer is recommended. Create an isolated environment and install
+the notebook dependencies:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate        # Windows PowerShell: .venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install jupyter pandas networkx numpy matplotlib plotly scikit-learn ipywidgets pyvis
+jupyter lab
+```
+
+Before running a notebook locally, change its CSV loading path from
+`/content/dataset-FDA-med-graph.csv` to
+`../datasets/dataset-FDA-med-graph.csv`. You may also want to change output
+paths under `/content/` to paths inside `code/`.
+
+## Current limitations
+
+- The data is a dated repository snapshot and does not update automatically.
+- Only predicates also represented by a dataset row become graph edges;
+  external or older predicates are omitted.
+- Company, panel, and device labels are used as supplied and may contain naming
+  variants (for example, two Gastroenterology/Urology spellings occur).
+- The primary notebook treats `Predicate Device` as a single identifier, while
+  the alternative notebook splits comma- or semicolon-separated identifiers.
+  Therefore, regenerated graphs can differ when a row contains multiple
+  predicates.
+- The notebooks are Colab-oriented and include package-installation cells or
+  hard-coded `/content/` paths, so local execution requires the adjustments
+  described above.
+- Checked-in HTML files are generated artifacts and may not reflect later CSV
+  edits unless the notebooks are rerun and the outputs replaced.
 
 ## Related visualization
 
-- [Russian Healthcare AI devices diagram](https://mermaid.ai/d/6cc175a9-0f3f-44ea-8cc4-23c9ed607311) — a complementary Mermaid diagram of AI devices in Russian healthcare.
+- [Russian Healthcare AI devices diagram](https://mermaid.ai/d/6cc175a9-0f3f-44ea-8cc4-23c9ed607311)
+  — a complementary Mermaid diagram of AI devices in Russian healthcare.
 
 ## License
 
-This project is distributed under the terms of the [MIT License](LICENSE).
+Distributed under the terms of the [MIT License](LICENSE).
